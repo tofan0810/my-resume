@@ -22,7 +22,13 @@ preamble = """\
 </head>
 <body>
 <div id="resume">
-{avatar}
+<div id="header">
+  <div id="header-text">
+    <h1>{title}</h1>
+    {contact_lines}
+  </div>
+  {avatar}
+</div>
 """
 
 postamble = """\
@@ -109,6 +115,57 @@ def avatar(prefix: str = "resume") -> str:
     return ""
 
 
+def extract_contact_lines(md: str) -> tuple[str, str]:
+    """
+    Extract all bullet items between h1 and the first h2, build two
+    <p class="contact-line"> rows, and return them together with a
+    cleaned version of md that has the h1 + those bullets removed.
+    """
+    lines = md.splitlines()
+    sep = '<span class="sep">|</span>'
+
+    # Find h1 and first h2
+    h1_idx = next((i for i, l in enumerate(lines) if re.match(r"^#[^#]", l)), None)
+    h2_idx = next((i for i, l in enumerate(lines) if re.match(r"^##", l)), len(lines))
+
+    if h1_idx is None:
+        return "", md
+
+    def process_item(s: str) -> str:
+        # [text](url) → <a href="url">text</a>
+        s = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', s)
+        # <email@address> → email@address
+        s = re.sub(r'<([^>]+@[^>]+)>', r'\1', s)
+        return s
+
+    # Collect all bullet lines strictly between h1 and first h2
+    all_bullets = []
+    bullet_indices = set()
+    for i in range(h1_idx + 1, h2_idx):
+        stripped = lines[i].strip()
+        if stripped.startswith("- "):
+            all_bullets.append(process_item(stripped[2:]))
+            bullet_indices.add(i)
+
+    # Build two contact rows: first 3 items | remaining items
+    rows = []
+    if all_bullets[:3]:
+        rows.append(
+            f'<p class="contact-line">{(" " + sep + " ").join(all_bullets[:3])}</p>'
+        )
+    if all_bullets[3:]:
+        rows.append(
+            f'<p class="contact-line">{(" " + sep + " ").join(all_bullets[3:])}</p>'
+        )
+    contact_html = "\n    ".join(rows)
+
+    # Build cleaned md: drop h1 line + all bullet lines before first h2
+    drop = bullet_indices | {h1_idx}
+    cleaned_md = "\n".join(l for i, l in enumerate(lines) if i not in drop)
+    return contact_html, cleaned_md
+
+
+
 def make_html(md: str, prefix: str = "resume", minify=True) -> str:
     """
     Compile md to HTML and prepend/append preamble/postamble.
@@ -121,10 +178,20 @@ def make_html(md: str, prefix: str = "resume", minify=True) -> str:
     except FileNotFoundError:
         print(prefix + ".css not found. Output will by unstyled.")
         css = ""
+
+    doc_title = title(md)
+    contact_html, body_md = extract_contact_lines(md)
+    av = avatar(prefix)
+
     html = "".join(
         (
-            preamble.format(title=title(md), css=css, avatar=avatar(prefix)),
-            markdown.markdown(md, extensions=["smarty", "abbr"]),
+            preamble.format(
+                title=doc_title,
+                css=css,
+                contact_lines=contact_html,
+                avatar=av,
+            ),
+            markdown.markdown(body_md, extensions=["smarty", "abbr"]),
             postamble,
         )
     )
@@ -132,6 +199,7 @@ def make_html(md: str, prefix: str = "resume", minify=True) -> str:
         import minify_html
         html = minify_html.minify(html, remove_processing_instructions=True, minify_css=True)
     return html
+
 
 
 def write_pdf(html: str, prefix: str = "resume", chrome: str = "") -> None:
