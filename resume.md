@@ -1,20 +1,19 @@
 <!-- The (first) h1 will be used as the <title> of the HTML page -->
 # Nguyen Khanh Toan
 
-<!-- The unordered list immediately after the h1 will be formatted on a single
-line. It is intended to be used for contact details -->
-- <tn421015@gmail.com>
-- +84 77 266 0810
-- Ho Chi Minh City, Vietnam
+### SOC Analyst Intern 
 
-<!-- Social Links -->
-- [github.com/tofan0810](https://github.com/tofan0810)
-- [linkedin.com/in/tofan0810](https://linkedin.com/in/tofan0810)
+- **Phone:** +84 77 266 0810
+- **Email:** <tn421015@gmail.com>
+- **LinkedIn:** [linkedin.com/in/tofan0810](https://linkedin.com/in/tofan0810)
+- **GitHub:** [github.com/tofan0810](https://github.com/tofan0810)
+- **Address:** Ho Chi Minh City, Vietnam
 
 <!-- The paragraph after the h1 and ul and before the first h2 is optional. It
 is intended to be used for a short summary. -->
 
-Dedicated Cybersecurity student with a solid foundation in digital forensics, reverse engineering, and OS internals. Proven agility in artifact analysis, binary exploitation, and low-level system programming through advanced labs and CTFs. Aspiring to leverage an investigative mindset to excel as a Mobile Security Engineer Intern – Forensics.
+Dedicated and analytical Cybersecurity student with hands-on technical experience building secure infrastructure simulations, log auditing systems, and defensive tools. Proven technical foundation in configuring centralized security monitoring via Wazuh SIEM, deploying active threat response mitigations, and auditing endpoint telemetry. Solid understanding of network security protocols, system internals, and secure programming practices. Aspiring to leverage technical agility, log analysis skills, and a threat-hunting mindset to excel as an Intern /
+Fresher SOC Analyst.
 
 ## Education
 

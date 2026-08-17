@@ -23,11 +23,14 @@ preamble = """\
 <body>
 <div id="resume">
 <div id="header">
+  {avatar}
   <div id="header-text">
     <h1>{title}</h1>
-    {contact_lines}
+    {subtitle_html}
+    <div class="contact-info">
+      {contact_lines}
+    </div>
   </div>
-  {avatar}
 </div>
 """
 
@@ -115,55 +118,74 @@ def avatar(prefix: str = "resume") -> str:
     return ""
 
 
-def extract_contact_lines(md: str) -> tuple[str, str]:
+def extract_contact_lines(md: str) -> tuple[str, str, str]:
     """
-    Extract all bullet items between h1 and the first h2, build two
-    <p class="contact-line"> rows, and return them together with a
-    cleaned version of md that has the h1 + those bullets removed.
+    Extract subtitle and bullet items between h1 and the first h2, build
+    structured contact items, and return (subtitle_html, contact_html, cleaned_md).
     """
     lines = md.splitlines()
-    sep = '<span class="sep">|</span>'
 
-    # Find h1 and first h2
+    # Find h1 and first h2 (level-2 heading: starts with '## ')
     h1_idx = next((i for i, l in enumerate(lines) if re.match(r"^#[^#]", l)), None)
-    h2_idx = next((i for i, l in enumerate(lines) if re.match(r"^##", l)), len(lines))
+    h2_idx = next((i for i, l in enumerate(lines) if re.match(r"^##\s+[^#]", l)), len(lines))
 
     if h1_idx is None:
-        return "", md
+        return "", "", md
 
-    def process_item(s: str) -> str:
+    def process_link_and_email(s: str) -> str:
         # [text](url) → <a href="url">text</a>
         s = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', s)
-        # <email@address> → email@address
-        s = re.sub(r'<([^>]+@[^>]+)>', r'\1', s)
+        # <email@address> → <a href="mailto:email@address">email@address</a>
+        s = re.sub(r'<([^>]+@[^>]+)>', r'<a href="mailto:\1">\1</a>', s)
         return s
 
-    # Collect all bullet lines strictly between h1 and first h2
+    subtitle = ""
+    subtitle_indices = set()
     all_bullets = []
     bullet_indices = set()
+
     for i in range(h1_idx + 1, h2_idx):
-        stripped = lines[i].strip()
-        if stripped.startswith("- "):
-            all_bullets.append(process_item(stripped[2:]))
+        line = lines[i]
+        stripped = line.strip()
+        if not stripped or stripped.startswith("<!--"):
+            continue
+        if stripped.startswith(("- ", "* ")):
+            bullet_text = stripped[2:].strip()
+            all_bullets.append(bullet_text)
             bullet_indices.add(i)
+        elif not all_bullets and not subtitle:
+            # Check for subtitle (e.g. ### Subtitle or *Subtitle* or plain text)
+            sub_text = re.sub(r"^#+\s*", "", stripped).strip("*_").strip()
+            if sub_text:
+                subtitle = sub_text
+                subtitle_indices.add(i)
 
-    # Build two contact rows: first 3 items | remaining items
-    rows = []
-    if all_bullets[:3]:
-        rows.append(
-            f'<p class="contact-line">{(" " + sep + " ").join(all_bullets[:3])}</p>'
-        )
-    if all_bullets[3:]:
-        rows.append(
-            f'<p class="contact-line">{(" " + sep + " ").join(all_bullets[3:])}</p>'
-        )
-    contact_html = "\n    ".join(rows)
+    # Format contact items
+    items_html = []
+    for item in all_bullets:
+        # Check if item matches **Label:** Value, **Label**: Value, or Label: Value
+        m = re.match(r'^(?:\*\*([^*:]+):\*\*|\*\*([^*]+)\*\*:\s*|([^:]+):\s*)(.*)$', item)
+        if m:
+            label = (m.group(1) or m.group(2) or m.group(3)).strip()
+            value = process_link_and_email(m.group(4).strip())
+            # If value is raw email without link, make it a link
+            if re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', value):
+                value = f'<a href="mailto:{value}">{value}</a>'
+            items_html.append(
+                f'<div class="contact-item"><span class="contact-label">{label}:</span><span class="contact-value">{value}</span></div>'
+            )
+        else:
+            processed = process_link_and_email(item)
+            items_html.append(
+                f'<div class="contact-item"><span class="contact-value">{processed}</span></div>'
+            )
 
-    # Build cleaned md: drop h1 line + all bullet lines before first h2
-    drop = bullet_indices | {h1_idx}
+    contact_html = "\n      ".join(items_html)
+    subtitle_html = f'<div class="subtitle">{subtitle}</div>' if subtitle else ""
+
+    drop = bullet_indices | subtitle_indices | {h1_idx}
     cleaned_md = "\n".join(l for i, l in enumerate(lines) if i not in drop)
-    return contact_html, cleaned_md
-
+    return subtitle_html, contact_html, cleaned_md
 
 
 def make_html(md: str, prefix: str = "resume", minify=True) -> str:
@@ -173,20 +195,21 @@ def make_html(md: str, prefix: str = "resume", minify=True) -> str:
     Insert <prefix>.css if it exists.
     """
     try:
-        with open(prefix + ".css") as cssfp:
+        with open(prefix + ".css", encoding="utf-8") as cssfp:
             css = cssfp.read()
     except FileNotFoundError:
         print(prefix + ".css not found. Output will by unstyled.")
         css = ""
 
     doc_title = title(md)
-    contact_html, body_md = extract_contact_lines(md)
+    subtitle_html, contact_html, body_md = extract_contact_lines(md)
     av = avatar(prefix)
 
     html = "".join(
         (
             preamble.format(
                 title=doc_title,
+                subtitle_html=subtitle_html,
                 css=css,
                 contact_lines=contact_html,
                 avatar=av,
